@@ -40,7 +40,7 @@ cdef class OutputContainer(Container):
     def __dealloc__(self):
         close_output(self)
 
-    def add_stream(self, codec_name=None, object rate=None, Stream template=None, options=None, **kwargs):
+    def add_stream(self, codec_name=None, object rate=None, Stream template=None, remux = True, options=None, **kwargs):
         """add_stream(codec_name, rate=None)
 
         Create a new stream, and return it.
@@ -69,7 +69,11 @@ cdef class OutputContainer(Container):
                 raise ValueError("template has no codec")
             if not template._codec_context:
                 raise ValueError("template has no codec context")
-            codec = lib.avcodec_find_encoder(template._codec.id)
+            
+            if remux:
+                codec = template._codec
+            else:
+                codec = lib.avcodec_find_encoder(template._codec.id)
 
         # Assert that this format supports the requested codec.
         if not lib.avformat_query_codec(
@@ -90,8 +94,11 @@ cdef class OutputContainer(Container):
         # Copy from the template.
         cdef const lib.AVCodecParameters *codec_params = lib.avcodec_parameters_alloc()
         if template is not None:
-            lib.avcodec_parameters_from_context(codec_params, template._codec_context)
-            lib.avcodec_parameters_to_context(codec_context, codec_params)
+            if remux:
+                lib.avcodec_copy_context(codec_context, template._codec_context)
+            else:
+                lib.avcodec_parameters_from_context(codec_params, template._codec_context)
+                lib.avcodec_parameters_to_context(codec_context, codec_params)
             # Reset the codec tag assuming we are remuxing.
             codec_context.codec_tag = 0
 
